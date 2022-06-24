@@ -122,9 +122,9 @@ ANC_PATH = os.path.join('data', 'anchor')
 
 # tf.data.Dataset.list_files(<>) -> pribavljamo sve slike iz foldera
 # kreiramo pipelineove
-anchor = tf.data.Dataset.list_files(ANC_PATH + '\*.jpg').take(250)
-positive = tf.data.Dataset.list_files(POS_PATH + '\*.jpg').take(250)
-negative = tf.data.Dataset.list_files(NEG_PATH + '\*.jpg').take(250)
+anchor = tf.data.Dataset.list_files(ANC_PATH + '\*.jpg').take(100)  # povacaj kasnije ako bude trebalo
+positive = tf.data.Dataset.list_files(POS_PATH + '\*.jpg').take(100)
+negative = tf.data.Dataset.list_files(NEG_PATH + '\*.jpg').take(100)
 
 
 # I tensorflow/core/platform/cpu_feature_guard.cc:142] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX AVX2
@@ -327,6 +327,10 @@ def train_step(batch):  # bazirano na prolasku kroz jedan batch
     return loss
 
 
+# Import metric calculations
+from tensorflow.keras.metrics import Precision, Recall  # dve metrike iz keras biblioteke
+
+
 # kreiranje petlje za treniranje
 def train(data, EPOCHS):  # bazirano na prolasku kroz svve batchove
     # epoch -> he beginning of a period in the history of someone or something.
@@ -334,16 +338,111 @@ def train(data, EPOCHS):  # bazirano na prolasku kroz svve batchove
     for epoch in range(1, EPOCHS + 1):
         print('\n Epoch {}/{}'.format(epoch, EPOCHS))
         progbar = tf.keras.utils.Progbar(len(data))  # inkrementujemo pri prolasku kroz svaki batch
+        r = Recall()
+        p = Precision()
 
         # loop kroz sve batchove
         for idx, batch in enumerate(data):
-            train_step(batch)
+            loss = train_step(batch)
+            yhat = siamese_model.predict(batch[:2])
+            r.update_state(batch[2], yhat)
+            p.update_state(batch[2], yhat)
             progbar.update(idx + 1)
 
         # Save checkpoints
         if epoch % 10 == 0:
             checkpoint.save(file_prefix=checkpoint_prefix)
 
-#Pocetak treniranja
-EPOCHS = 50
-train(train_data,EPOCHS)
+
+# # Pocetak treniranja
+EPOCHS = 25  # treba biti 50 al sad zasad nek bude 25
+train(train_data, EPOCHS)
+
+#######################################################################
+##################### Evaluacija modela  ##############################
+#######################################################################
+
+# Get a batch of test data
+test_input, test_val, y_true = test_data.as_numpy_iterator().next()  # .next() uzimamo sledeci batch i sledeci batch do kraja
+# test_data.as_numpy_iterator().next() vraca tri vrednosti: inputove slike, validacione slike i tacnost/label (16,16,1/0)
+
+
+# Make predictions
+y_hat = siamese_model.predict([test_input, test_val])
+
+res = []
+# Post processing rezultate odnosno postavljamo na 0 ili 1 u zavisnosti og podesenog praga
+for prediction in y_hat:
+    if prediction > 0.5:
+        res.append(1)
+    else:
+        res.append(0)
+
+m = Recall()
+m.update_state(y_true, res)
+m.result().numpy()
+
+m = Precision()
+m.update_state(y_true, res)
+m.result().numpy()
+
+#######################################################################
+######################## Cuvanje modela  ##############################
+#######################################################################
+
+# Cuvanje tezinskih koeficijenata
+siamese_model.save('siamesemodel.h5')
+
+# # #Relaod model
+# model = tf.keras.models.load_model('siamesemodel.h5', custom_objects={'L1Dist': L1Dist,
+#                                                                       'BinaryCrossentropy': tf.keras.losses.BinaryCrossentropy})
+#
+#
+# # tf.keras.models.load_model() nam omogucuje da ucitamo nas model
+# # #zato sto imamu custom layer L1Dist moramo da ga prosledimo kao custom_objects
+#
+# #######################################################################
+# ######################## Real time verifikacija  ######################
+# #######################################################################
+#
+#
+# def verify(model, detection_treshold, verification_threshold):
+#     # Detection threshold -> prag iznad kojeg se slika smatra identicnom
+#     # Verification threshold -> proporcija pozitivnih / ukupna kolicina svih pozitivnih uzoraka
+#     # gledamo folder E:\Desktop\ORI_Projekat\Facial\application_data\verification_images i u njemu se nalazi 45 pozitivnih uzoraka
+#     results = []
+#     for image in os.listdir(os.path.join('application_data', 'verification_images')):
+#         input_img = preprocess(os.path.join('application_data', 'input_image', 'input_image.jpg'))
+#         validation_img = preprocess(os.path.join('application_data', 'verification_images', image))
+#
+#         # make prediction
+#         result = model.predict(list(np.expand_dims([input_img, validation_img], axis=1)))
+#         results.append(result)
+#
+#     detection = np.sum(np.array(results) > detection_treshold)
+#     verification = detection / len(os.listdir(os.path.join('application_data', 'verification_images')))
+#     verified = verification > verification_threshold
+#
+#     return results, verified
+#
+#
+# cap = cv2.VideoCapture(0)
+# while cap.isOpened():
+#     ret, frame = cap.read()
+#     frame = frame[40:40 + 250, 200:200 + 250, :]
+#     cv2.imshow('Verification', frame)  # prikaz prozora live feed-a
+#     if cv2.waitKey(10) & 0XFF == ord('q'):
+#         break
+#
+#     # Verification trigger
+#     if cv2.waitKey(1) & 0XFF == ord('v'):  # za verifikaciju
+#         # prvo cuvamo sliku u E:\Desktop\ORI_Projekat\Facial\application_data\input_image
+#         img_loc = os.path.join('application_data', 'input_image', 'input_image.jpg')
+#         cv2.imwrite(img_loc, frame)
+#
+#         results, verified = verify(model, 0.5, 0.5)
+#         print(verified)
+#
+# cap.release()  # prekidamo konekciju sa web kamerom
+# cv2.destroyAllWindows()  # zatvaramo prozor live feed-a
+# model.summary()
