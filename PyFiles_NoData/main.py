@@ -231,8 +231,47 @@ def make_embedding():
     d1 = Dense(4096, activation='sigmoid')(f1)
 
     return Model(inputs=[inp], outputs=[d1], name='embedding')  # ovim nase slike pretvaramo u VEKTORE
+    # velicina je 4096
 
 
-model = make_embedding()
-model.summary()
+embedding = make_embedding()
+embedding.summary()
 
+
+# L1 siamese distance layer oduzima dve reke/inputa/slike jednu od druge time nam ogvori
+# koliko su slicne/identicne slike koje smo prosledili nasoj neuronskoj mrezi
+class L1Dist(Layer):
+    def __init__(self, **kwargs):  # **kwargs nam omogucava da radimo sa ovim slojem kao delom nekog veceg modela
+        super().__init__()  # nasledjivanje
+
+    # Efetrivno spajamo Anchor sliku sa ili Positivnom ili Negatrvnom (spajamo <-> odizimamo njihove vrednosti)
+    # Funkcija call oznacava akciju odnosno funkciju koja ce se pozvati nad prosledjenim podacima
+    def call(self, input_embedding, validation_embedding):
+        return tf.math.abs(input_embedding - validation_embedding)
+    # ovo je nasa loss funkcija. Neke od loss funkcija su contrastive, cross entropy, triplet ....
+
+
+#######################################################################
+################### Kreiranje Siamese modela  #########################
+#######################################################################
+
+def make_siamese_model():
+    # Anchor slika/input
+    input_image = Input(name='input_img', shape=(100, 100, 3))
+
+    # Validation slika/input
+    validation_image = Input(name='validation_img', shape=(100, 100, 3))
+
+    siamese_layer = L1Dist()
+    siamese_layer._name = 'distance'
+    distances = siamese_layer(embedding(input_image), embedding(validation_image))
+
+    # Klasifikacioni sloj
+    classifier = Dense(1, activation='sigmoid')(distances)  # ovime spajamo 4096 unita u jedan
+                                                            # output koji ima vrednost 0 ili 1
+
+    return Model(inputs=[input_image, validation_image], outputs=classifier, name='SiameseNetwork')
+
+
+siamese_model = make_siamese_model()
+siamese_model.summary()
