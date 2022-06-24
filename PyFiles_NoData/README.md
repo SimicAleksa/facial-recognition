@@ -28,3 +28,8 @@ Za potrebe koriscenja je neophodno da se napravi minimum 250 anchor i positive s
 The tf.data API enables you to build complex input pipelines from simple, reusable pieces. 
 
 Naucni rad koriscen kao inspiracija: https://www.cs.cmu.edu/~rsalakhu/papers/oneshot1.pdf
+
+Koristimo BinaryCrossentropy loss funkciju https://www.tensorflow.org/api_docs/python/tf/keras/losses/BinaryCrossentropy
+Koristimo Adam optijamzer https://www.tensorflow.org/api_docs/python/tf/keras/optimizers/Adam
+Postavljamo anotaciju/dekorator @tf.function https://www.tensorflow.org/api_docs/python/tf/function sto nam daje mogucnost samog treniranja nase neuronske mreze
+Koristimo tf.GradientTape() https://www.tensorflow.org/api_docs/python/tf/GradientTape
