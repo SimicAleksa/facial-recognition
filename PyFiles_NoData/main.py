@@ -248,7 +248,7 @@ class L1Dist(Layer):
     # Funkcija call oznacava akciju odnosno funkciju koja ce se pozvati nad prosledjenim podacima
     def call(self, input_embedding, validation_embedding):
         return tf.math.abs(input_embedding - validation_embedding)
-    # ovo je nasa loss funkcija. Neke od loss funkcija su contrastive, cross entropy, triplet ....
+    # ovo je nasoo kao loss funkcija.
 
 
 #######################################################################
@@ -268,10 +268,82 @@ def make_siamese_model():
 
     # Klasifikacioni sloj
     classifier = Dense(1, activation='sigmoid')(distances)  # ovime spajamo 4096 unita u jedan
-                                                            # output koji ima vrednost 0 ili 1
+    # output koji ima vrednost 0 ili 1
 
     return Model(inputs=[input_image, validation_image], outputs=classifier, name='SiameseNetwork')
 
 
 siamese_model = make_siamese_model()
 siamese_model.summary()
+
+#######################################################################
+######################### Treniranje  #################################
+#######################################################################
+
+# nasa loss funkcija
+binary_cross_loss = tf.keras.losses.BinaryCrossentropy()
+
+# optimajzer
+opt = tf.keras.optimizers.Adam(1e-4)  # learning rate je postavljan na 0.0001
+
+# checkpoint callbacks
+checkpoint_dir = './training_checkpoints'  # folder u kojem cuvamo nase checkpointove
+checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
+checkpoint = tf.train.Checkpoint(opt=opt, siamese_model=siamese_model)
+
+
+################
+# to reaload from the checkpoint you can use model.load(<path_to_checkpoint>)
+################
+
+
+# Proces pri treniranju jednog skupa podataka (jednog batcha) je sledeci:
+# 1. Make a prediction
+# 2. Calculate loss
+# 3. Derive gradients
+# 4. Calculate new weights and apply
+
+@tf.function
+def train_step(batch):  # bazirano na prolasku kroz jedan batch
+
+    with tf.GradientTape() as tape:  # nam ovogucuje "hvatanje" gradijenata iz nase neuronske mreze
+        # uzimamo anchor i positive/negative sliku
+        X = batch[:2]
+        # Get label odnosno vrednost 0 za negativnu ili 1 za pozitivnu
+        y = batch[2]
+
+        # Forward pass
+        yhat = siamese_model(X, training=True)  # yhat je predikcija odnosno dobijeni rezultat
+        loss = binary_cross_loss(y, yhat)  # racunanje lossa
+
+    # Racunanje gradijenata
+    grad = tape.gradient(loss, siamese_model.trainable_variables)  # racunaj gradijente po prosledjenoj loss funkciji
+    # za celu neuronsku mrezu
+
+    # Racunanje novih tezina i njihovo postavljanje na siamese model
+    opt.apply_gradients(zip(grad, siamese_model.trainable_variables))
+    # opt optimizer racuna i propagira nove tezinske koeficijente pomocu Adam optimiazcionoig algoritma
+
+    return loss
+
+
+# kreiranje petlje za treniranje
+def train(data, EPOCHS):  # bazirano na prolasku kroz svve batchove
+    # epoch -> he beginning of a period in the history of someone or something.
+    # loop kroz epochs
+    for epoch in range(1, EPOCHS + 1):
+        print('\n Epoch {}/{}'.format(epoch, EPOCHS))
+        progbar = tf.keras.utils.Progbar(len(data))  # inkrementujemo pri prolasku kroz svaki batch
+
+        # loop kroz sve batchove
+        for idx, batch in enumerate(data):
+            train_step(batch)
+            progbar.update(idx + 1)
+
+        # Save checkpoints
+        if epoch % 10 == 0:
+            checkpoint.save(file_prefix=checkpoint_prefix)
+
+#Pocetak treniranja
+EPOCHS = 50
+train(train_data,EPOCHS)
