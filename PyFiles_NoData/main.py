@@ -58,8 +58,8 @@ import tensorflow as tf
 POS_PATH = os.path.join('data', 'positive')
 NEG_PATH = os.path.join('data', 'negative')
 ANC_PATH = os.path.join('data', 'anchor')
-
-######## Kreiranje foldera ########## samo se jednom pokrece
+#
+# ####### Kreiranje foldera ########## samo se jednom pokrece
 # os.makedirs(POS_PATH)
 # os.makedirs(NEG_PATH)
 # os.makedirs(ANC_PATH)
@@ -154,8 +154,8 @@ def preprocess(file_path):
 ########### Kreiranje setova slika / nase baze podataka  ##############
 #######################################################################
 
-## (anchor,positive) => 1,1,1,1,1
-## (anchor,negative) => 0,0,0,0,0
+# (anchor,positive) => 1,1,1,1,1
+# (anchor,negative) => 0,0,0,0,0
 
 # .zip nam daje mogucnost da iteriramo kroz sve tri liste(ancgor,positive,tf.data.Data.....)
 # od nasih lista smo formirali tuple
@@ -233,9 +233,9 @@ def make_embedding():
     return Model(inputs=[inp], outputs=[d1], name='embedding')  # ovim nase slike pretvaramo u VEKTORE
     # velicina je 4096
 
-
+#
 embedding = make_embedding()
-embedding.summary()
+# embedding.summary()
 
 
 # L1 siamese distance layer oduzima dve reke/inputa/slike jednu od druge time nam ogvori
@@ -281,11 +281,11 @@ siamese_model.summary()
 #######################################################################
 
 # nasa loss funkcija
-binary_cross_loss = tf.keras.losses.BinaryCrossentropy()
-
-# optimajzer
+binary_cross_loss = tf.losses.BinaryCrossentropy()
+#
+# # optimajzer
 opt = tf.keras.optimizers.Adam(1e-4)  # learning rate je postavljan na 0.0001
-
+#
 # checkpoint callbacks
 checkpoint_dir = './training_checkpoints'  # folder u kojem cuvamo nase checkpointove
 checkpoint_prefix = os.path.join(checkpoint_dir, 'ckpt')
@@ -302,7 +302,7 @@ checkpoint = tf.train.Checkpoint(opt=opt, siamese_model=siamese_model)
 # 2. Calculate loss
 # 3. Derive gradients
 # 4. Calculate new weights and apply
-
+#
 @tf.function
 def train_step(batch):  # bazirano na prolasku kroz jedan batch
 
@@ -332,21 +332,23 @@ from tensorflow.keras.metrics import Precision, Recall  # dve metrike iz keras b
 
 
 # kreiranje petlje za treniranje
-def train(data, EPOCHS):  # bazirano na prolasku kroz svve batchove
+def train(data_temp, EPOCHS):  # bazirano na prolasku kroz svve batchove
     # epoch -> he beginning of a period in the history of someone or something.
     # loop kroz epochs
     for epoch in range(1, EPOCHS + 1):
         print('\n Epoch {}/{}'.format(epoch, EPOCHS))
-        progbar = tf.keras.utils.Progbar(len(data))  # inkrementujemo pri prolasku kroz svaki batch
+        progbar = tf.keras.utils.Progbar(len(data_temp))  # inkrementujemo pri prolasku kroz svaki batch
         r = Recall()
         p = Precision()
 
         # loop kroz sve batchove
-        for idx, batch in enumerate(data):
+        for idx, batch in enumerate(data_temp):
             loss = train_step(batch)
-            yhat = siamese_model.predict(batch[:2])
-            r.update_state(batch[2], yhat)
-            p.update_state(batch[2], yhat)
+            print(loss)
+            yhat_temp = siamese_model.predict(batch[:2])
+            r.update_state(batch[2], yhat_temp)
+            p.update_state(batch[2], yhat_temp)
+            # train_step(batch)
             progbar.update(idx + 1)
 
         # Save checkpoints
@@ -354,59 +356,73 @@ def train(data, EPOCHS):  # bazirano na prolasku kroz svve batchove
             checkpoint.save(file_prefix=checkpoint_prefix)
 
 
-# # Pocetak treniranja
-EPOCHS = 25  # treba biti 50 al sad zasad nek bude 25
-train(train_data, EPOCHS)
+# Pocetak treniranja
+# EPOCHS = 11  # treba biti 50 al sad zasad nek bude 25
+# train(train_data, EPOCHS)
 
 #######################################################################
 ##################### Evaluacija modela  ##############################
 #######################################################################
 
-# Get a batch of test data
-test_input, test_val, y_true = test_data.as_numpy_iterator().next()  # .next() uzimamo sledeci batch i sledeci batch do kraja
-# test_data.as_numpy_iterator().next() vraca tri vrednosti: inputove slike, validacione slike i tacnost/label (16,16,1/0)
+# # Get a batch of test data
+# test_input, test_val, y_true = test_data.as_numpy_iterator().next()  # .next() uzimamo sledeci batch i sledeci batch do kraja
+# # test_data.as_numpy_iterator().next() vraca tri vrednosti: inputove slike, validacione slike i tacnost/label (16,16,1/0)
 
 
-# Make predictions
-y_hat = siamese_model.predict([test_input, test_val])
-
-res = []
+# # Make predictions
+# y_hat = siamese_model.predict([test_input, test_val])
+#
+# res = []
 # Post processing rezultate odnosno postavljamo na 0 ili 1 u zavisnosti og podesenog praga
-for prediction in y_hat:
-    if prediction > 0.5:
-        res.append(1)
-    else:
-        res.append(0)
-
-m = Recall()
-m.update_state(y_true, res)
-m.result().numpy()
-
-m = Precision()
-m.update_state(y_true, res)
-m.result().numpy()
-
+# for prediction in y_hat:
+#     if prediction > 0.5:
+#         res.append(1)
+#     else:
+#         res.append(0)
+#
 #######################################################################
 ######################## Cuvanje modela  ##############################
 #######################################################################
-
-# Cuvanje tezinskih koeficijenata
-siamese_model.save('siamesemodel.h5')
+# # Cuvanje tezinskih koeficijenata
+# siamese_model.predict([test_input, test_val])
+# siamese_model.save('siamesemodel.h5')
 
 # # #Relaod model
-# model = tf.keras.models.load_model('siamesemodel.h5', custom_objects={'L1Dist': L1Dist,
-#                                                                       'BinaryCrossentropy': tf.keras.losses.BinaryCrossentropy})
+model = tf.keras.models.load_model('siamesemodel.h5',custom_objects={'L1Dist': L1Dist,
+                                                                      'BinaryCrossentropy': tf.losses.BinaryCrossentropy})
+# tf.keras.models.load_model() nam omogucuje da ucitamo nas model
+# #zato sto imamu custom layer L1Dist moramo da ga prosledimo kao custom_objects
+# # da bi mogli da koristimo model nad njim moramo pokrenuti predikcije !!!!!!!!!!!!!!!!!!!!!!!!!
+# print(model.predict([test_input, test_val]))
+# model.summary()
+
+#######################################################################
+########################### Testiranje  ###############################
+#######################################################################
+for test_input, test_val, y_true in test_data.as_numpy_iterator():
+    yhat = model.predict([test_input, test_val])
+    for i in range(0,len(test_input)):
+        plt.subplot(1,2,1)
+        plt.imshow(test_input[i])
+        plt.subplot(1, 2, 2)
+        plt.imshow(test_val[i])
+        plt.text(-10, -10,yhat[i], fontsize=22)
+        plt.show()
+        print(yhat[i])
+
+print("KRAJ")
+#######################################################################
+#######################################################################
+#######################################################################
+
+
+
+#######################################################################
+######################## Real time verifikacija  ######################
+#######################################################################
+
 #
-#
-# # tf.keras.models.load_model() nam omogucuje da ucitamo nas model
-# # #zato sto imamu custom layer L1Dist moramo da ga prosledimo kao custom_objects
-#
-# #######################################################################
-# ######################## Real time verifikacija  ######################
-# #######################################################################
-#
-#
-# def verify(model, detection_treshold, verification_threshold):
+# def verify(model_temp, detection_treshold, verification_threshold):
 #     # Detection threshold -> prag iznad kojeg se slika smatra identicnom
 #     # Verification threshold -> proporcija pozitivnih / ukupna kolicina svih pozitivnih uzoraka
 #     # gledamo folder E:\Desktop\ORI_Projekat\Facial\application_data\verification_images i u njemu se nalazi 45 pozitivnih uzoraka
@@ -416,8 +432,15 @@ siamese_model.save('siamesemodel.h5')
 #         validation_img = preprocess(os.path.join('application_data', 'verification_images', image))
 #
 #         # make prediction
-#         result = model.predict(list(np.expand_dims([input_img, validation_img], axis=1)))
+#         result = model_temp.predict(list(np.expand_dims([input_img, validation_img], axis=1)))
 #         results.append(result)
+#
+#         plt.subplot(1, 2, 1)
+#         plt.imshow(input_img)
+#         plt.subplot(1, 2, 2)
+#         plt.imshow(validation_img)
+#         plt.text(-10, -10,result, fontsize=22)
+#         plt.show()
 #
 #     detection = np.sum(np.array(results) > detection_treshold)
 #     verification = detection / len(os.listdir(os.path.join('application_data', 'verification_images')))
@@ -437,12 +460,12 @@ siamese_model.save('siamesemodel.h5')
 #     # Verification trigger
 #     if cv2.waitKey(1) & 0XFF == ord('v'):  # za verifikaciju
 #         # prvo cuvamo sliku u E:\Desktop\ORI_Projekat\Facial\application_data\input_image
-#         img_loc = os.path.join('application_data', 'input_image', 'input_image.jpg')
-#         cv2.imwrite(img_loc, frame)
-#
-#         results, verified = verify(model, 0.5, 0.5)
+#         cv2.imwrite(os.path.join('application_data', 'input_image', 'input_image.jpg'), frame)
+#         results, verified = verify(model, 0.7, 0.7)
 #         print(verified)
-#
+#         print(results)
 # cap.release()  # prekidamo konekciju sa web kamerom
 # cv2.destroyAllWindows()  # zatvaramo prozor live feed-a
-# model.summary()
+#
+#
+# #treniranje i testiranje i pokretanje i izdvojene fajlove!!!
