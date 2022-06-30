@@ -1,4 +1,4 @@
-Facial Verification with a Siamese Network
+Facial recognition with a Siamese Network
 
 Dependencies used:
     1.  tensorflow
