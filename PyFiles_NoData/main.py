@@ -87,8 +87,8 @@ ANC_PATH = os.path.join('data', 'anchor')
 # Velicina slika iz LFW je 250 x 250 pixela, takve nam trebaju i Anchor i Positive
 # Prikupljamo slike preko web kamere, za to nam treva opencv
 
-
-# VideoCapture(<camNUM>) kod camNUM-a moze doci do greske jer gadjamo pogresnu kameru, on se resava promenom vrednosti camNUM-a
+#
+# # VideoCapture(<camNUM>) kod camNUM-a moze doci do greske jer gadjamo pogresnu kameru, on se resava promenom vrednosti camNUM-a
 # cap = cv2.VideoCapture(0)  # dobijamo pristup nasoj web kameri
 # while cap.isOpened():  # imamo loop frejmova dobijenih od web kamere
 #     ret, frame = cap.read()  # citamo frejm
@@ -133,6 +133,7 @@ negative = tf.data.Dataset.list_files(NEG_PATH + '\*.jpg').take(100)
 
 
 # funkcija preprocess nam vraca numpy vrednost prosledjene slike
+# mi citamo file sa putanje zatim taj kodirani podatak dekodujemo u jpeg => resajzujemo taj jpeg na nama potrebne dimenzije i delimo dobijenu sliku sa 255 da bi sveli njenu vrednost na vrednsot izmedju 0 i 1
 def preprocess(file_path):
     # citanje slike sa putanje file_path
     byte_img = tf.io.read_file(file_path)
@@ -399,8 +400,11 @@ model = tf.keras.models.load_model('siamesemodel.h5',custom_objects={'L1Dist': L
 #######################################################################
 ########################### Testiranje  ###############################
 #######################################################################
+tacnih = 0
+broj_slika = 0
 for test_input, test_val, y_true in test_data.as_numpy_iterator():
     yhat = model.predict([test_input, test_val])
+
     for i in range(0,len(test_input)):
         plt.subplot(1,2,1)
         plt.imshow(test_input[i])
@@ -408,9 +412,19 @@ for test_input, test_val, y_true in test_data.as_numpy_iterator():
         plt.imshow(test_val[i])
         plt.text(-10, -10,yhat[i], fontsize=22)
         plt.show()
-        print(yhat[i])
+        print(yhat[i], y_true[i])
+        if yhat[i] >= 0.8 and y_true[i] == 1.0:
+            tacnih=tacnih+1
+        if yhat[i] < 0.8 and y_true[i] == 0.0:
+            tacnih=tacnih+1
+        broj_slika= broj_slika+1
 
-print("KRAJ")
+print(tacnih)
+print(broj_slika)
+tacnost = tacnih/broj_slika
+print(tacnost)
+
+
 #######################################################################
 #######################################################################
 #######################################################################
@@ -468,4 +482,3 @@ print("KRAJ")
 # cv2.destroyAllWindows()  # zatvaramo prozor live feed-a
 #
 #
-# #treniranje i testiranje i pokretanje i izdvojene fajlove!!!
